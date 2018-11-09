@@ -1,29 +1,15 @@
 #include "Arduino.h"
+#include "config.h"
 
-#define SPEAKER_OUT 3
-#define POT_LOW_PIN A0
-#define POT_WIPER_PIN A1
-#define POT_HIGH_PIN A2
-
-#define KEY_LOW_PIN 10
-#define KEY_LEFT_PIN 9
-#define KEY_RIGHT_PIN 8
-
-#define DIT_DAH_RATIO 3
-
+//Config Macros
 #define PADDLE_PRESSED_LEFT !digitalRead(KEY_LEFT_PIN)
 #define PADDLE_PRESSED_RIGHT !digitalRead(KEY_RIGHT_PIN)
-
-#define BEEP_FREQ 746.25
-
 #define START_TONE tone(SPEAKER_OUT, BEEP_FREQ);
 #define END_TONE noTone(SPEAKER_OUT);
 
 
-#define MODE_THRESHOLD 1000
 
-// state of the machine
-typedef enum {
+typedef enum class STATE {
     IDLE = 0, // doing nothing
     DASH = 1,  // playing a dash
     DOT = 2,   // playing a dot
@@ -32,9 +18,9 @@ typedef enum {
 
 
 void HandleIambicMorse(int DitLength, int DahLength) {
-    static State_t CurrentState = IDLE; // sate of what the keyer output is sending right now
-    static State_t NextState = IDLE; // state the keyer will go into when current element ends
-    static State_t LastState = IDLE;        // previous state of the keyer
+    static State_t CurrentState = STATE::IDLE; // state of what the keyer output is sending right now
+    static State_t NextState = STATE::IDLE; // state the keyer will go into when current element ends
+    static State_t LastState = STATE::IDLE;        // previous state of the keyer
     static unsigned long NextStateChangeTime; // what CurrentTime did the current element start    sounding (in milliseconds since powerup)
 
     bool LeftPaddlePressed = PADDLE_PRESSED_LEFT;  // read the current values of the paddles
@@ -44,76 +30,76 @@ void HandleIambicMorse(int DitLength, int DahLength) {
 
     switch (CurrentState) {  // cases based on what current state is
 
-        case DASH:
-            if ((LeftPaddlePressed == HIGH) && (NextState == IDLE)) {  // going from dash to iambic mode
-                NextState = DOT;
+        case STATE::DASH:
+            if (LeftPaddlePressed && (NextState == STATE::IDLE)) {  // going from dash to iambic mode
+                NextState = STATE::DOT;
             }
 
             if (CurrentTime >= NextStateChangeTime) {  // at end of current dash
-                LastState = DASH;  // a delay will follow the dash
-                CurrentState = DELAY;
+                LastState = STATE::DASH;  // a delay will follow the dash
+                CurrentState = STATE::DELAY;
                 NextStateChangeTime = CurrentTime + DitLength;
             }
 
             START_TONE;
             break;
 
-        case DOT:
-            if ((RightPaddlePressed == HIGH) && (NextState == IDLE)) {  // going from dot to iambic mode
-                NextState = DASH;
+        case STATE::DOT:
+            if (RightPaddlePressed && (NextState == STATE::IDLE)) {  // going from dot to iambic mode
+                NextState = STATE::DASH;
             }
             if (CurrentTime >= NextStateChangeTime) {  // at end of current dot
-                LastState = DOT;  // a delay will follow the dot
-                CurrentState = DELAY;
+                LastState = STATE::DOT;  // a delay will follow the dot
+                CurrentState = STATE::DELAY;
                 NextStateChangeTime = CurrentTime + DitLength;
             }
 
             START_TONE;
             break;
 
-        case IDLE:   // not sending, nor finishing the delay after a dot or dash
-            if ((LeftPaddlePressed == HIGH) &&
-                (RightPaddlePressed == LOW)) { // only dot paddle pressed, go to DOT mode
-                LastState = IDLE;
-                CurrentState = DOT;
+        case STATE::IDLE:   // not sending, nor finishing the delay after a dot or dash
+            if (LeftPaddlePressed &&
+                (!RightPaddlePressed)) { // only dot paddle pressed, go to DOT mode
+                LastState = STATE::IDLE;
+                CurrentState = STATE::DOT;
                 NextStateChangeTime = CurrentTime + DitLength;
 
-            } else if ((LeftPaddlePressed == LOW) &&
-                       (RightPaddlePressed == HIGH)) { // only dash paddle pressed, go to DASH mode
-                LastState = IDLE;
-                CurrentState = DASH;
+            } else if ((!LeftPaddlePressed) &&
+                       RightPaddlePressed) { // only dash paddle pressed, go to DASH mode
+                LastState = STATE::IDLE;
+                CurrentState = STATE::DASH;
                 NextStateChangeTime = CurrentTime + DahLength;
 
-            } else if ((LeftPaddlePressed == HIGH) && (RightPaddlePressed == HIGH) && (NextState == IDLE)) {
+            } else if (LeftPaddlePressed && RightPaddlePressed && (NextState == STATE::IDLE)) {
                 // if both paddles hit at same CurrentTime (rare, but happens)
-                LastState = IDLE;
-                CurrentState = DOT;
-                NextState = DASH;
+                LastState = STATE::IDLE;
+                CurrentState = STATE::DOT;
+                NextState = STATE::DASH;
                 NextStateChangeTime = CurrentTime + DahLength; // it is an iambic keyer, not a trochaic keyer
             }
 
             END_TONE;
             break;
 
-        case DELAY:  // waiting for a dot-length delay after sending a dot or dash 
+        case STATE::DELAY:  // waiting for a dot-length delay after sending a dot or dash
             if (CurrentTime >= NextStateChangeTime) {  // check to see if there is a next element to play
                 CurrentState = NextState;
-                if (CurrentState == DOT) {
+                if (CurrentState == STATE::DOT) {
                     NextStateChangeTime = CurrentTime + DitLength;
 
-                } else if (CurrentState == DASH) {
+                } else if (CurrentState == STATE::DASH) {
                     NextStateChangeTime = CurrentTime + DahLength;
                 }
 
-                LastState = DELAY;
-                NextState = IDLE;
+                LastState = STATE::DELAY;
+                NextState = STATE::IDLE;
             }
             // during the delay, if either paddle is pressed, save it to play after the delay
-            if ((LastState == DOT) && (RightPaddlePressed == HIGH) && (NextState == NULL)) {
-                NextState = DASH;
+            if ((LastState == STATE::DOT) && RightPaddlePressed && (NextState == STATE::IDLE)) {
+                NextState = STATE::DASH;
 
-            } else if ((LastState == DASH) && (LeftPaddlePressed == HIGH) && (NextState == NULL)) {
-                NextState = DOT;
+            } else if ((LastState == STATE::DASH) && LeftPaddlePressed && (NextState == STATE::IDLE)) {
+                NextState = STATE::DOT;
             }
 
             END_TONE;
@@ -156,13 +142,12 @@ void setup() {
 }
 
 
-
 void loop() {
     int ModeVal = analogRead(POT_WIPER_PIN);
     if (ModeVal >= MODE_THRESHOLD) {
         HandleStraightMorse();
     } else {
-        int DitLength = ((ModeVal * (65. / 1023.) + 35)); //load CW message WPM
+        int DitLength = ((ModeVal * ((float) (MAX_WPM - MIN_WPM) / 1023.) + MIN_WPM));
         int DahLength = DitLength * DIT_DAH_RATIO;
         HandleIambicMorse(DitLength, DahLength);
     }
