@@ -144,7 +144,7 @@ void setup() {
 
 void loop() {
     int ModeVal = analogRead(POT_WIPER_PIN);
-    if (ModeVal >= MODE_THRESHOLD) {
+    if (ModeVal MODE_THRESHOLD) {
         HandleStraightMorse();
     } else {
         int DitLength = ((ModeVal * ((float) (MAX_WPM - MIN_WPM) / 1023.) + MIN_WPM));

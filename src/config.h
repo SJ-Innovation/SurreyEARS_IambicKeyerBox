@@ -16,4 +16,4 @@
 #define BEEP_FREQ 746.25
 #define MIN_WPM 35
 #define MAX_WPM 100
-#define MODE_THRESHOLD 1000
+#define MODE_THRESHOLD <=10
